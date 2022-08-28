@@ -15,48 +15,88 @@ try {
 
 var wc = new WebClient();
 int currentAmount = 1;
-Image? image = null;
 Texture2D? texture = null;
 XKCDInfo currentInfo;
 
 if (!Directory.Exists(AppDomain.CurrentDomain.BaseDirectory + "/comics/"))
 	Directory.CreateDirectory(AppDomain.CurrentDomain.BaseDirectory + "/comics/");
 
+void GetComicMax()
+{
+	if (wifi)
+	{
+		currentInfo = JsonConvert.DeserializeObject<XKCDInfo>(wc.DownloadString("https://xkcd.com/info.0.json"));
+		currentAmount = currentInfo.num;
+	}
+	else
+	{
+		string[] dirs = Directory.GetDirectories(AppDomain.CurrentDomain.BaseDirectory + "/comics/");
+		if (dirs.Length <= 0)
+			return;
+
+		List<int> downloaded = new List<int>();
+		foreach (var d in dirs) downloaded.Add(int.Parse(Path.GetFileNameWithoutExtension(d)));
+		int max = -1;
+		for (int i = 0; i < downloaded.Count; i++)
+		{
+			if (downloaded[i] > max)
+				max = downloaded[i];
+		}
+		currentAmount = max;
+	}
+}
+
 void LoadNewComic(int num)
 {
-	
 	if (!Directory.Exists(AppDomain.CurrentDomain.BaseDirectory + "/comics/" + num))
 	{
 		Console.WriteLine("Downloading comic " + num);
 		Directory.CreateDirectory(AppDomain.CurrentDomain.BaseDirectory + "/comics/" + num);
-		string infoString = wc.DownloadString("https://xkcd.com/" + num + "/info.0.json");
-		File.WriteAllText(AppDomain.CurrentDomain.BaseDirectory + "/comics/" + num + "/info.json", infoString);
-		currentInfo = JsonConvert.DeserializeObject<XKCDInfo>(infoString);
-		wc.DownloadFile(currentInfo.img, AppDomain.CurrentDomain.BaseDirectory + "/comics/" + currentInfo.num + "/comic.png");
+		string infoString;
+		if (num == 404)
+		{
+			infoString = wc.DownloadString("https://raw.githubusercontent.com/Khhs167/xkcd-client/master/comic404/info.0.json");
+			File.WriteAllText(AppDomain.CurrentDomain.BaseDirectory + "/comics/" + num + "/info.json", infoString);
+			currentInfo = JsonConvert.DeserializeObject<XKCDInfo>(infoString);
+			string extention = Path.GetExtension(currentInfo.img);
+			wc.DownloadFile(currentInfo.img, AppDomain.CurrentDomain.BaseDirectory + "/comics/" + currentInfo.num + "/comic" + extention);
+			
+		}
+		else
+		{
+			infoString = wc.DownloadString("https://xkcd.com/" + num + "/info.0.json");
+			File.WriteAllText(AppDomain.CurrentDomain.BaseDirectory + "/comics/" + num + "/info.json", infoString);
+			currentInfo = JsonConvert.DeserializeObject<XKCDInfo>(infoString);
+			string extention = Path.GetExtension(currentInfo.img);
+			wc.DownloadFile(currentInfo.img, AppDomain.CurrentDomain.BaseDirectory + "/comics/" + currentInfo.num + "/comic" + extention);
+		}
 	}
 	else
 	{
 		Console.WriteLine("Loading comic " + num);
 		currentInfo = JsonConvert.DeserializeObject<XKCDInfo>(File.ReadAllText(AppDomain.CurrentDomain.BaseDirectory + "/comics/" + num + "/info.json"));
 	}
-
-	if(image != null)
-		Raylib.UnloadImage((Image)image);
 	if(texture != null)
 		Raylib.UnloadTexture((Texture2D)texture);
+	string loadImageEx = Path.GetExtension(currentInfo.img);
 
-	image = Raylib.LoadImage(AppDomain.CurrentDomain.BaseDirectory + "/comics/" + num + "/comic.png");
+	texture = Raylib.LoadTexture(AppDomain.CurrentDomain.BaseDirectory + "/comics/" + num + "/comic" + loadImageEx);
 
-	Raylib.SetWindowSize(((Image)image).width, ((Image)image).height);
+	if (texture.Value.id <= 0)
+	{
+		Console.Error.WriteLine("Could not load comic!");
+		LoadNewComic(404);
+	}
+	
+	Raylib.SetWindowSize(texture.Value.width, texture.Value.height);
 	Raylib.SetWindowTitle($"xkcd - {currentInfo.safe_title}[{currentInfo.num}] {currentInfo.day}/{currentInfo.month}-{currentInfo.year}");
-
-	texture = Raylib.LoadTextureFromImage((Image)image);
 }
 
 const bool SHOULD_DISPLAY_ALT = false;
 
-Raylib.InitWindow(10, 10, "xkcd");
+Raylib.InitWindow(1280, 720, "xkcd client");
 
+GetComicMax();
 if (args.Length == 1)
 {
 	if (args[0] == "download")
@@ -67,20 +107,30 @@ if (args.Length == 1)
 			Console.Error.WriteLine("Cannot download all comics: No wifi");
 			return;
 		}
-		
-		currentInfo = JsonConvert.DeserializeObject<XKCDInfo>(wc.DownloadString("https://xkcd.com/info.0.json"));
-		currentAmount = currentInfo.num;
 
 		for (int i = 1; i < currentAmount; i++)
 		{
 			if (!Directory.Exists(AppDomain.CurrentDomain.BaseDirectory + "/comics/" + i))
 			{
+
 				Console.WriteLine("Downloading comic " + i + " [" + MathF.Round((float)i / (float)currentAmount * 100, 2) + "%]");
 				Directory.CreateDirectory(AppDomain.CurrentDomain.BaseDirectory + "/comics/" + i);
-				string infoString = wc.DownloadString("https://xkcd.com/" + i + "/info.0.json");
+				string infoString;
+				if (i == 404)
+				{
+					infoString = wc.DownloadString("https://raw.githubusercontent.com/Khhs167/xkcd-client/master/comic404/info.0.json");
+					File.WriteAllText(AppDomain.CurrentDomain.BaseDirectory + "/comics/" + i + "/info.json", infoString);
+					currentInfo = JsonConvert.DeserializeObject<XKCDInfo>(infoString);
+					wc.DownloadFile(currentInfo.img,
+						AppDomain.CurrentDomain.BaseDirectory + "/comics/" + currentInfo.num + "/comic.png");
+					continue;
+				}
+				infoString = wc.DownloadString("https://xkcd.com/" + i + "/info.0.json");
 				File.WriteAllText(AppDomain.CurrentDomain.BaseDirectory + "/comics/" + i + "/info.json", infoString);
 				currentInfo = JsonConvert.DeserializeObject<XKCDInfo>(infoString);
-				wc.DownloadFile(currentInfo.img, AppDomain.CurrentDomain.BaseDirectory + "/comics/" + currentInfo.num + "/comic.png");
+				string extention = Path.GetExtension(currentInfo.img);
+				wc.DownloadFile(currentInfo.img,
+					AppDomain.CurrentDomain.BaseDirectory + "/comics/" + currentInfo.num + "/comic" + extention);
 			}
 		}
 		return;
@@ -88,27 +138,12 @@ if (args.Length == 1)
 	}
 	Console.WriteLine(args[0]);
 	LoadNewComic(int.Parse(args[0]));
-
-} else if(wifi){
-	currentInfo = JsonConvert.DeserializeObject<XKCDInfo>(wc.DownloadString("https://xkcd.com/info.0.json"));
-	currentAmount = currentInfo.num;
-	LoadNewComic(currentAmount);
-} else{
-	string[] dirs = Directory.GetDirectories(AppDomain.CurrentDomain.BaseDirectory + "/comics/");
-	if(dirs.Length <= 0)
-		return;
-	
-	List<int> downloaded = new List<int>();
-	foreach(var d in dirs) downloaded.Add(int.Parse(Path.GetFileNameWithoutExtension(d)));
-	int max = -1;
-	for(int i = 0; i < downloaded.Count; i++){
-		if(downloaded[i] > max)
-			max = downloaded[i];
-	}
-	currentAmount = max;
-	currentInfo = JsonConvert.DeserializeObject<XKCDInfo>(File.ReadAllText(AppDomain.CurrentDomain.BaseDirectory + "/comics/" + max + "/info.json"));
+}
+else
+{
 	LoadNewComic(currentAmount);
 }
+
 Raylib.SetTargetFPS(30);
 
 float timeSinceLastMouseMove = 0f;
@@ -150,6 +185,10 @@ while (!Raylib.WindowShouldClose())
 
 	if (Raylib.IsMouseButtonPressed(MouseButton.MOUSE_BUTTON_LEFT))
 	{
+		Raylib.BeginDrawing();
+		Raylib.ClearBackground(Color.WHITE);
+		Raylib.DrawText("Loading comic...", 5, 5, 20, Color.BLACK);
+		Raylib.EndDrawing();
 		if(wifi)
 			LoadNewComic(Random.Shared.Next(1, currentAmount));
 		else{
