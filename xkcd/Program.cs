@@ -14,7 +14,7 @@ try {
 }
 
 var wc = new WebClient();
-int currentAmount;
+int currentAmount = 1;
 Image? image = null;
 Texture2D? texture = null;
 XKCDInfo currentInfo;
@@ -55,9 +55,44 @@ void LoadNewComic(int num)
 
 const bool SHOULD_DISPLAY_ALT = false;
 
-if(wifi){
+Raylib.InitWindow(10, 10, "xkcd");
+
+if (args.Length == 1)
+{
+	if (args[0] == "download")
+	{
+		Raylib.CloseWindow();
+		if (!wifi)
+		{
+			Console.Error.WriteLine("Cannot download all comics: No wifi");
+			return;
+		}
+		
+		currentInfo = JsonConvert.DeserializeObject<XKCDInfo>(wc.DownloadString("https://xkcd.com/info.0.json"));
+		currentAmount = currentInfo.num;
+
+		for (int i = 1; i < currentAmount; i++)
+		{
+			if (!Directory.Exists(AppDomain.CurrentDomain.BaseDirectory + "/comics/" + i))
+			{
+				Console.WriteLine("Downloading comic " + i + " [" + MathF.Round((float)i / (float)currentAmount * 100, 2) + "%]");
+				Directory.CreateDirectory(AppDomain.CurrentDomain.BaseDirectory + "/comics/" + i);
+				string infoString = wc.DownloadString("https://xkcd.com/" + i + "/info.0.json");
+				File.WriteAllText(AppDomain.CurrentDomain.BaseDirectory + "/comics/" + i + "/info.json", infoString);
+				currentInfo = JsonConvert.DeserializeObject<XKCDInfo>(infoString);
+				wc.DownloadFile(currentInfo.img, AppDomain.CurrentDomain.BaseDirectory + "/comics/" + currentInfo.num + "/comic.png");
+			}
+		}
+		return;
+
+	}
+	Console.WriteLine(args[0]);
+	LoadNewComic(int.Parse(args[0]));
+
+} else if(wifi){
 	currentInfo = JsonConvert.DeserializeObject<XKCDInfo>(wc.DownloadString("https://xkcd.com/info.0.json"));
 	currentAmount = currentInfo.num;
+	LoadNewComic(currentAmount);
 } else{
 	string[] dirs = Directory.GetDirectories(AppDomain.CurrentDomain.BaseDirectory + "/comics/");
 	if(dirs.Length <= 0)
@@ -72,10 +107,8 @@ if(wifi){
 	}
 	currentAmount = max;
 	currentInfo = JsonConvert.DeserializeObject<XKCDInfo>(File.ReadAllText(AppDomain.CurrentDomain.BaseDirectory + "/comics/" + max + "/info.json"));
+	LoadNewComic(currentAmount);
 }
-
-Raylib.InitWindow(10, 10, "xkcd");
-LoadNewComic(currentAmount);
 Raylib.SetTargetFPS(30);
 
 float timeSinceLastMouseMove = 0f;
