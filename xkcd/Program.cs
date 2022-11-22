@@ -2,9 +2,12 @@
 
 using Newtonsoft.Json;
 using Raylib_cs;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
 using System.Net;
-using System.Numerics;
 using System.Net.NetworkInformation;
+
+using Color = Raylib_cs.Color;
 
 bool wifi = true;
 try {
@@ -68,7 +71,17 @@ void LoadNewComic(int num)
 			File.WriteAllText(AppDomain.CurrentDomain.BaseDirectory + "/comics/" + num + "/info.json", infoString);
 			currentInfo = JsonConvert.DeserializeObject<XKCDInfo>(infoString);
 			string extention = Path.GetExtension(currentInfo.img);
-			wc.DownloadFile(currentInfo.img, AppDomain.CurrentDomain.BaseDirectory + "/comics/" + currentInfo.num + "/comic" + extention);
+
+			if(!Directory.Exists(AppDomain.CurrentDomain.BaseDirectory + "/tmp"))
+				Directory.CreateDirectory(AppDomain.CurrentDomain.BaseDirectory + "/tmp");
+
+			wc.DownloadFile(currentInfo.img, AppDomain.CurrentDomain.BaseDirectory + "/tmp/comic" + extention);
+			Image<Rgba32> image = SixLabors.ImageSharp.Image.Load<Rgba32>(AppDomain.CurrentDomain.BaseDirectory + "/tmp/comic" + extention);
+			image.SaveAsPng(AppDomain.CurrentDomain.BaseDirectory + "/comics/" + currentInfo.num + "/comic.png");
+
+			//var bitmap = Bitmap.FromFile(AppDomain.CurrentDomain.BaseDirectory + "/tmp/comic" + extention);
+			//bitmap.Save(AppDomain.CurrentDomain.BaseDirectory + "/comics/" + currentInfo.num + "/comic.png", System.Drawing.Imaging.ImageFormat.Png);
+
 		}
 	}
 	else
@@ -78,9 +91,8 @@ void LoadNewComic(int num)
 	}
 	if(texture != null)
 		Raylib.UnloadTexture((Texture2D)texture);
-	string loadImageEx = Path.GetExtension(currentInfo.img);
 
-	texture = Raylib.LoadTexture(AppDomain.CurrentDomain.BaseDirectory + "/comics/" + num + "/comic" + loadImageEx);
+	texture = Raylib.LoadTexture(AppDomain.CurrentDomain.BaseDirectory + "/comics/" + num + "/comic.png");
 
 	if (texture.Value.id <= 0)
 	{
